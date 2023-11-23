@@ -1,0 +1,84 @@
+##### modeling part 
+
+library(randomForest)
+library(xgboost)
+library(caret)
+library(dplyr)
+library(tidyverse)
+library(e1071)
+library(ranger)
+
+load("G:/Meine Ablage/Data_solutions/Car market/data/df_car_market_new_with_full_other_features_upt.rda")
+
+###load cars_new1 dataset 
+df <- na.omit(cars_new2)
+df$price1 <- as.numeric(df$price1)
+df$color <- as.factor(df$цвет)
+df$region_full <- as.factor(df$region_full)
+df$fuel_type <- as.factor(df$fuel_type)
+df$new_body <- as.factor(df$new_body)
+df$new_transmission <- as.factor(df$new_transmission)
+df$condtion <- as.factor(df$`состояние краски`)
+df$привод <- as.factor(df$привод)
+df$пробег <- as.numeric(df$пробег)
+df$new_motor_size <- as.numeric(df$new_motor_size)
+df$year_month <- as.factor(df$year_month)
+
+####droping large levels 
+counts <- table(df$Model)
+df$Model1 <- factor(ifelse(df$Model %in% names(counts[counts >= 100]), df$Model, NA))
+# df <- df %>%
+#   filter(!is.na(Model1))
+#table(df$Model1)
+counts_brand <- table(df$Brand)
+df$Brand1 <- factor(ifelse(df$Brand %in% names(counts_brand[counts_brand >= 100]), df$Brand, NA))
+
+
+df <- df[,c(1:4, 7:70, 73:80)]
+set.seed(123)
+df <- na.omit(df)
+
+
+splitIndex <- createDataPartition(df$price1, p = .7, list = FALSE, times = 1)
+train_data <- df[splitIndex,] 
+test_data <- df[-splitIndex,]
+glimpse(train_data)
+##saving fro shiny input
+#save(train_data, file = "G:/Meine Ablage/Data_solutions/Car market/Car_prices_project/shiny/train_data.rda")
+
+
+#####tuning part 
+
+ctrl <- trainControl(method = "cv", number = 5)
+grid <- expand.grid(.mtry = seq(1, 2*sqrt(ncol(train_data)-1), length.out = 10))
+
+runtime_rf_tuning <- system.time({
+  model <- train(price1 ~ ., data = train_data, method = "rf", metric = "RMSE", 
+                 tuneGrid = grid, trControl = ctrl)
+})
+print(runtime_rf_tuning)
+# print the best tuning parameters
+model$bestTune
+# mtry  = 
+
+runtime_rf_tuned <- system.time({
+rf_model_tuned <- randomForest(price1 ~ ., data = train_data, ntree = 500, mtry = 6.708204)
+print(rf_model_tuned)
+test_predictions_rf_tuned <- predict(rf_model_tuned, newdata = test_data)
+# Calculate evaluation metrics
+MAE_rf_tuned <- mean(abs(test_predictions_rf_tuned - test_data$price1))
+MSE_rf_tuned <- mean((test_predictions_rf_tuned - test_data$price1)^2) 
+RMSE_rf_tuned <- sqrt(MSE_rf_tuned)
+cat("Mean Absolute Error:", MAE_rf_tuned, "\n")
+cat("Mean Squared Error:", MSE_rf_tuned, "\n")
+cat("Root Mean Squared Error:", RMSE_rf_tuned, "\n")
+})
+runtime_rf_tuned
+# Mean Absolute Error: 459.8119 
+# Mean Squared Error: 506689.5 
+# Root Mean Squared Error: 711.8212  
+R2 <- caret::R2(test_predictions_rf_tuned, test_data$price1)
+print(paste("R-squared:", R2))
+
+
+saveRDS(rf_model_tuned, file = "G:/Meine Ablage/Data_solutions/Car market/Code/modelling/new dataset/results/rf_new_wtime_model_full_76vars_rf.rds")

@@ -1,0 +1,330 @@
+library(randomForest)
+library(xgboost)
+library(caret)
+library(dplyr)
+library(tidyverse)
+library(e1071)
+library(ranger)
+library(fst)
+library(lubridate)
+
+load("G:/Meine Ablage/Data_solutions/Housing market/Dataset/olx_data_apr22_sep23_clean_wo_dupl.rda")
+
+
+
+################# without missings ##################
+data <- data_apr22_sep23_clean_wo_dupl[, c(2:4, 7:21, 26:49)]
+data <- na.omit(data)
+
+### const year: ordered factor variable
+data <- data %>% 
+  mutate(construction_year=factor(construction_year, 
+                                  levels = c("старше 1960", "1960 - 1979", "1980 - 1989", 
+                                             "1990 - 2000", "2001 - 2010", "2011 - 2014", 
+                                             "2015", "2016", "2017", "2018", "2019", 
+                                             "2020", "2021", "2022", "2023"),
+                                  ordered = TRUE))
+
+  
+  
+  
+### ceiling_height ordered factor  
+data <- data %>%
+  mutate(ceiling_height_rounded = round(ceiling_height, 1),
+         ceiling_height_category = case_when(
+           ceiling_height_rounded < 2.7 ~ "до 2.7 м",
+           ceiling_height_rounded > 3.5 ~ "выше 3.5 м",
+           TRUE ~ paste(ceiling_height_rounded, "м")
+         )) %>%
+  mutate(ceiling_height_category = factor(ceiling_height_category,
+                                          levels = c("до 2.7 м", sort(unique(ceiling_height_category[!ceiling_height_category %in% c("до 2.7 м", "выше 3.5 м")])), "выше 3.5 м"),
+                                          ordered = TRUE)) %>%
+  select(-ceiling_height, -ceiling_height_rounded)
+
+## location
+data <- data %>%
+  mutate(location = case_when(
+    state == "Toshkent shahri" ~ district,
+    grepl("shahri", district) ~ district,
+    district == "Nukus" ~ district,
+    district == "Urganch" ~ district,
+    district == "Urganch" ~ district,
+    TRUE ~ state
+  )) %>%
+  mutate(location=ifelse(location == "Shayxontohur Tumani", "Shayhontohur Tumani", location)) %>%
+  mutate(location = as.factor(location))
+
+
+## month_and_year
+data <- data %>%
+  mutate(month_and_year = as.Date(paste0(month_and_year, "-01"), format = "%m-%Y-%d"),
+         month_numeric = floor((year(month_and_year) - 1970) * 12 + month(month_and_year) - 1)) %>%
+  filter(month_numeric!=626 & month_numeric!=632) %>%
+  select(-month_and_year)
+
+
+##other character variables
+data$ownership <- as.factor(data$ownership)
+data$remont <- as.factor(data$remont)
+data$sanuzel <- as.factor(data$sanuzel)
+data$structure <- as.factor(data$structure)
+data$construction_type <- as.factor(data$construction_type)
+
+
+## extracting data for Tashkent
+data_tashkent <- data %>%
+  filter(state=="Toshkent shahri") %>%
+  select(-state, -district)
+
+data <- data %>%
+  select(-state, -district)
+
+save(data, file = "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_nonmissings_for_model.rda")
+save(data_tashkent, file = "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_nonmissings_tashkent_for_model.rda")
+write.csv(data_tashkent, "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_nonmissings_tashkent_for_model.csv", row.names = FALSE)
+
+
+
+
+
+
+################# full data including missings #########################
+data_full <- data_apr22_sep23_clean_wo_dupl[, c(2:4, 7:21, 26:49)]
+
+### const year: ordered factor variable
+data_full <- data_full %>% 
+  mutate(construction_year=factor(construction_year, 
+                                  levels = c("старше 1960", "1960 - 1979", "1980 - 1989", 
+                                             "1990 - 2000", "2001 - 2010", "2011 - 2014", 
+                                             "2015", "2016", "2017", "2018", "2019", 
+                                             "2020", "2021", "2022", "2023"),
+                                  ordered = TRUE))
+
+
+
+
+### ceiling_height ordered factor  
+data_full <- data_full %>%
+  mutate(ceiling_height_rounded = round(ceiling_height, 1),
+         ceiling_height_category = case_when(
+           ceiling_height_rounded < 2.7 ~ "до 2.7 м",
+           ceiling_height_rounded > 3.5 ~ "выше 3.5 м",
+           TRUE ~ paste(ceiling_height_rounded, "м")
+         )) %>%
+  mutate(ceiling_height_category = factor(ceiling_height_category,
+                                          levels = c("до 2.7 м", sort(unique(ceiling_height_category[!ceiling_height_category %in% c("до 2.7 м", "выше 3.5 м")])), "выше 3.5 м"),
+                                          ordered = TRUE)) %>%
+  select(-ceiling_height, -ceiling_height_rounded)
+
+## location
+data_full <- data_full %>%
+  mutate(location = case_when(
+    state == "Toshkent shahri" ~ district,
+    grepl("shahri", district) ~ district,
+    district == "Nukus" ~ district,
+    district == "Urganch" ~ district,
+    district == "Urganch" ~ district,
+    TRUE ~ state
+  )) %>%
+  mutate(location=ifelse(location == "Shayxontohur Tumani", "Shayhontohur Tumani", location)) %>%
+  mutate(location = as.factor(location))
+
+
+## month_and_year
+data_full <- data_full %>%
+  mutate(month_and_year = as.Date(paste0(month_and_year, "-01"), format = "%m-%Y-%d"),
+         month_numeric = floor((year(month_and_year) - 1970) * 12 + month(month_and_year) - 1)) %>%
+  filter(month_numeric!=626 & month_numeric!=632) %>%
+  select(-month_and_year)
+
+
+##other character variables
+data_full$ownership <- as.factor(data_full$ownership)
+data_full$remont <- as.factor(data_full$remont)
+data_full$sanuzel <- as.factor(data_full$sanuzel)
+data_full$structure <- as.factor(data_full$structure)
+data_full$construction_type <- as.factor(data_full$construction_type)
+
+
+## extracting data for Tashkent
+data_tashkent_full <- data_full %>%
+  filter(state=="Toshkent shahri") %>%
+  select(-state, -district)
+
+data_full <- data_full %>%
+  select(-state, -district)
+
+save(data_full, file = "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_full_for_model.rda")
+save(data_tashkent_full, file = "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_full_tashkent_for_model.rda")
+write.csv(data_tashkent_full, "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_full_tashkent_for_model.csv", row.names = FALSE)
+
+
+
+
+################# full data imputing missings in const_year and ceiling_height #########################
+data_full_imputed_mean <- data_apr22_sep23_clean_wo_dupl[, c(2:4, 7:21, 26:49)]
+
+### const year: ordered factor variable
+data_full_imputed_mean <- data_full_imputed_mean %>% 
+  mutate(construction_year = case_when(
+    is.na(construction_year) & market_type == 2 ~ "1990 - 2000",
+    is.na(construction_year) & market_type == 1 ~ "2019",
+    TRUE ~ construction_year
+  )) %>%
+  mutate(construction_year=factor(construction_year, 
+                                  levels = c("старше 1960", "1960 - 1979", "1980 - 1989", 
+                                             "1990 - 2000", "2001 - 2010", "2011 - 2014", 
+                                             "2015", "2016", "2017", "2018", "2019", 
+                                             "2020", "2021", "2022", "2023"),
+                                  ordered = TRUE))
+
+
+
+
+### ceiling_height ordered factor  
+data_full_imputed_mean <- data_full_imputed_mean %>%
+  mutate(ceiling_height = case_when(
+    is.na(ceiling_height) & market_type == 2 ~ 2.7,
+    is.na(ceiling_height) & market_type == 1 ~ 3,
+    TRUE ~ ceiling_height
+  )) %>%
+  mutate(ceiling_height_rounded = round(ceiling_height, 1),
+         ceiling_height_category = case_when(
+           ceiling_height_rounded < 2.7 ~ "до 2.7 м",
+           ceiling_height_rounded > 3.5 ~ "выше 3.5 м",
+           TRUE ~ paste(ceiling_height_rounded, "м")
+         )) %>%
+  mutate(ceiling_height_category = factor(ceiling_height_category,
+                                          levels = c("до 2.7 м", sort(unique(ceiling_height_category[!ceiling_height_category %in% c("до 2.7 м", "выше 3.5 м")])), "выше 3.5 м"),
+                                          ordered = TRUE)) %>%
+  select(-ceiling_height, -ceiling_height_rounded)
+
+## location
+data_full_imputed_mean <- data_full_imputed_mean %>%
+  mutate(location = case_when(
+    state == "Toshkent shahri" ~ district,
+    grepl("shahri", district) ~ district,
+    district == "Nukus" ~ district,
+    district == "Urganch" ~ district,
+    district == "Urganch" ~ district,
+    TRUE ~ state
+  )) %>%
+  mutate(location=ifelse(location == "Shayxontohur Tumani", "Shayhontohur Tumani", location)) %>%
+  mutate(location = as.factor(location))
+
+
+## month_and_year
+data_full_imputed_mean <- data_full_imputed_mean %>%
+  mutate(month_and_year = as.Date(paste0(month_and_year, "-01"), format = "%m-%Y-%d"),
+         month_numeric = floor((year(month_and_year) - 1970) * 12 + month(month_and_year) - 1)) %>%
+  filter(month_numeric!=626 & month_numeric!=632) %>%
+  select(-month_and_year)
+
+
+##other character variables
+data_full_imputed_mean$ownership <- as.factor(data_full_imputed_mean$ownership)
+data_full_imputed_mean$remont <- as.factor(data_full_imputed_mean$remont)
+data_full_imputed_mean$sanuzel <- as.factor(data_full_imputed_mean$sanuzel)
+data_full_imputed_mean$structure <- as.factor(data_full_imputed_mean$structure)
+data_full_imputed_mean$construction_type <- as.factor(data_full_imputed_mean$ownership)
+
+
+## extracting data for Tashkent
+data_full_imputed_mean_tashkent <- data_full_imputed_mean %>%
+  filter(state=="Toshkent shahri") %>%
+  select(-state, -district)
+
+data_full_imputed_mean <- data_full_imputed_mean %>%
+  select(-state, -district)
+
+#save(data_full_imputed_mean, file = "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_full_for_model.rda")
+#save(data_full_imputed_mean_tashkent, file = "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_full_imputed_mean_tashkent_for_model.rda")
+write.csv(data_full_imputed_mean_tashkent, "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_full_imputed_mean_tashkent_for_model.csv", row.names = FALSE)
+
+
+
+test<-na.omit(data_full_imputed_mean_tashkent)
+
+
+missing_counts <- data_full_imputed_mean_tashkent %>%
+  summarise(across(everything(), ~sum(is.na(.))))
+
+# View the missing counts
+print(missing_counts)
+
+
+
+
+
+
+
+
+
+################# full data imputing missings in all columns using iterative imputing #########################
+## top and commission have almost always a single non-varying value for all observations
+data_full_for_iter_impute <- data_apr22_sep23_clean_wo_dupl[, c(3:4, 7, 9:21, 26:49)]
+
+
+## location
+data_full_for_iter_impute <- data_full_for_iter_impute %>%
+  mutate(location = case_when(
+    state == "Toshkent shahri" ~ district,
+    grepl("shahri", district) ~ district,
+    district == "Nukus" ~ district,
+    district == "Urganch" ~ district,
+    district == "Urganch" ~ district,
+    TRUE ~ state
+  )) %>%
+  mutate(location=ifelse(location == "Shayxontohur Tumani", "Shayhontohur Tumani", location)) %>%
+  mutate(location = as.factor(location))
+
+##### ceiling
+data_full_for_iter_impute <- data_full_for_iter_impute %>%
+  mutate(ceiling_height_rounded = round(ceiling_height, 1),
+         ceiling_height_category = case_when(
+           ceiling_height_rounded < 2.7 ~ "до 2.7 м",
+           ceiling_height_rounded > 3.5 ~ "выше 3.5 м",
+           TRUE ~ paste(ceiling_height_rounded, "м")
+         )) %>%
+  mutate(ceiling_height_category=ifelse(is.na(ceiling_height), NA_character_, ceiling_height_category))%>%
+  select(-ceiling_height, -ceiling_height_rounded)
+
+
+
+
+## month_and_year
+data_full_for_iter_impute <- data_full_for_iter_impute %>%
+  mutate(month_and_year = as.Date(paste0(month_and_year, "-01"), format = "%m-%Y-%d"),
+         month_numeric = floor((year(month_and_year) - 1970) * 12 + month(month_and_year) - 1)) %>%
+  filter(month_numeric!=626 & month_numeric!=632) %>%
+  select(-month_and_year)
+
+
+
+##other character variables
+data_full_for_iter_impute$ownership <- as.factor(data_full_for_iter_impute$ownership)
+data_full_for_iter_impute$remont <- as.factor(data_full_for_iter_impute$remont)
+data_full_for_iter_impute$sanuzel <- as.factor(data_full_for_iter_impute$sanuzel)
+data_full_for_iter_impute$structure <- as.factor(data_full_for_iter_impute$structure)
+data_full_for_iter_impute$construction_type <- as.factor(data_full_for_iter_impute$construction_type)
+
+
+
+
+#save(data_full_imputed_mean, file = "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_full_for_model.rda")
+#save(data_full_imputed_mean_tashkent, file = "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_full_imputed_mean_tashkent_for_model.rda")
+write.csv(data_full_for_iter_impute, "G:/Meine Ablage/Data_solutions/Housing market/Dataset/data_full_for_iter_impute_for_model.csv", row.names = FALSE)
+
+
+## extracting data for Tashkent
+data_full_for_iter_impute_tashkent <- data_full_for_iter_impute %>%
+  filter(state=="Toshkent shahri") %>%
+  select(-state, -district)
+
+data_full_for_iter_impute <- data_full_for_iter_impute %>%
+  select(-state, -district)
+
+
+for(x in 1:5) {
+  print(x)
+}

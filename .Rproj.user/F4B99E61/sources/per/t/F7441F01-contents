@@ -1,0 +1,185 @@
+library(RSQLite)
+library(DBI)
+library(readxl)
+library(dplyr)
+library(writexl)
+library(stringr)
+library(caret)
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(purrr)
+library(lubridate)
+
+con <- dbConnect(RSQLite::SQLite(), dbname = "G:/Meine Ablage/Data_solutions/Car market/Data/avtoelon_merged_data_130723.db")
+
+tables <- dbListTables(con)
+print(tables)
+
+data <- dbGetQuery(con, "SELECT * FROM avtoelon")
+
+dbDisconnect(con)
+
+
+regions <- read_excel("G:/Meine Ablage/Data_solutions/Car market/data/Regions.xlsx")
+
+########### REGIONS ############
+
+# Change column names to ensure they are consistent
+data2 <- data %>%
+  group_by(link_item) %>%
+  dplyr::distinct(price1, .keep_all = TRUE)
+
+colnames(data2) <- tolower(colnames(data2))
+colnames(regions) <- tolower(colnames(regions))
+
+## since lat, long variables are added to the car dataset, we need to change the name of the lat variable in regions dataset
+regions <- regions %>%
+  mutate(lotin=lat) %>%
+  select(-lat)
+
+# Join the datasets
+result <- left_join(data2, regions, by = c("city1" = "cyr"))
+
+# Replace 'city1' values with corresponding 'lat' values
+result <- result %>%
+  mutate(city1 = ifelse(!is.na(lotin), lotin, city1))
+
+# Remove the 'lat' column and rewrite all data to a new 'result' data frame
+result <- result %>%
+  select(-lotin)
+
+###########################################
+source("G:/Meine Ablage/Data_solutions/Car market/Code/modelling/cleaning part other features.R")
+
+
+
+data1 <-  result %>%
+  filter(!is.na(`объем двигателя, л`), !is.na(price1), !is.na(city1), !is.na(fuel_type), !is.na(кузов), 
+         !is.na(пробег), !is.na(`коробка передач`), !is.na(цвет), !is.na(`состояние краски`))
+
+
+
+
+clean <- data1 %>%
+  filter(price1 > 2000 & price1 < 300000)
+
+clean <- clean %>%
+  mutate(Brand = brand_name,
+         Model = car_name)
+clean <- clean %>%
+  mutate(Model = ifelse(Model %in% c("nan", "none", "None", "Nan"), title_2_name, Model),
+         Brand = ifelse(Brand %in% c("nan", "none", "None", "Nan"), title_2_brand, Brand))
+
+clean$Model <- gsub(",", "", clean$Model)
+clean$Brand <- gsub(",", "", clean$Brand)
+
+
+## extract month-year variable
+# Define the conversion function
+convert_date <- function(date) {
+  if (str_detect(date, "^\\d{2}/\\d{2}/\\d{4}$")) {
+    return(format(dmy(date), "%m-%Y"))
+  } else if (str_detect(date, "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$")) {
+    return(format(ymd_hms(date), "%m-%Y"))
+  } else {
+    return(NA_character_)
+  }
+}
+
+# Use dplyr and purrr to efficiently apply the function to the dates column
+clean <- clean %>% mutate(year_month = map_chr(current_time1, convert_date))
+
+clean<- clean[, c(6,59,17:20,30:32,38,55,64:128)]
+##################### model and body type cleaning part 
+car_counts <- clean %>%
+  group_by(Model, кузов) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Widen data
+car_counts_wide <- car_counts %>%
+  pivot_wider(names_from = кузов, values_from = count, values_fill = 0) %>%
+  select(-None, -nan)
+
+####long format 
+
+car_counts_long <- car_counts_wide %>%
+  pivot_longer(cols = -Model, names_to = "кузов", values_to = "count")
+
+# most frequent type 
+frequent_body <- car_counts_long %>%
+  group_by(Model) %>%
+  summarise(new_body = кузов[which.max(count)], .groups = 'drop')
+
+# Join to the main dataset
+cars_with_new_body <- left_join(clean, frequent_body, by = "Model")
+
+########transmission cleaning part
+
+cars_new <- cars_with_new_body %>%
+  mutate(new_transmission = case_when(
+    `коробка передач` %in% c("Вариатор", "Робот", "Типтроник", "Автомат") ~ "Автомат",
+    `коробка передач` == "Механика" ~ "Механика",
+    TRUE ~ `коробка передач`))
+
+
+######motor size cleaning part 
+
+cars_motor <- cars_new %>%
+  group_by(Model, `объем двигателя, л`) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Widen data
+car_motor_counts_wide <- cars_motor %>%
+  pivot_wider(names_from = `объем двигателя, л`, values_from = count, values_fill = 0) %>%
+  select(-None, -nan)
+
+####long format 
+
+car_motor_counts_long <- car_motor_counts_wide %>%
+  pivot_longer(cols = -Model, names_to = "объем двигателя, л", values_to = "count")
+
+# most frequent type 
+frequent_motor <- car_motor_counts_long %>%
+  group_by(Model) %>%
+  summarise(new_motor_size = `объем двигателя, л`[which.max(count)], .groups = 'drop')
+
+# Join to the main dataset
+cars_new1 <- left_join(cars_new, frequent_motor, by = "Model")
+
+cars_new1 <- cars_new1[,c(1:3, 6, 8:79)]
+
+
+### remove "nan" "None" values
+# variables <- c("new_motor_size", "price1", "region_full", "fuel_type", "new_body", "пробег", "new_transmission",
+#                "цвет", "состояние краски", "привод", "Brand", "Model")
+variables <- colnames(cars_new1)
+
+for (var in variables) {
+  cars_new1[[var]] <- ifelse(grepl("nan|none|None|Nan", cars_new1[[var]]), NA, cars_new1[[var]])
+}
+
+cars_new2 <-  cars_new1 %>%
+  filter(!is.na(new_motor_size), !is.na(price1), !is.na(region_full), !is.na(fuel_type), !is.na(new_body),
+         !is.na(пробег), !is.na(new_transmission), !is.na(цвет), !is.na(`состояние краски`), !is.na(год),
+         !is.na(привод), !is.na(Brand), !is.na(Model))
+
+
+missing_values <- sapply(cars_new1, function(x) sum(is.na(x)))
+print(missing_values)
+# price1      region_full              год           привод             цвет состояние краски 
+# 0             2113                    0            31231           212259           274128 
+# пробег        fuel_type            Brand            Model       year_month         new_body 
+# 312780            58857                0                4                0            25710 
+# new_transmission   new_motor_size 
+# 30153            36045 
+table(clean$кузов)
+table(clean$`коробка передач`)
+table(clean$`объем двигателя, л`)
+table(clean$`состояние краски`)
+
+
+cars_new2$пробег <- gsub("км", "", cars_new2$пробег)
+
+save(cars_new2, file = "G:/Meine Ablage/Data_solutions/Car market/data/df_car_market_new_with_full_other_features_upt.rda")
+

@@ -1,0 +1,188 @@
+library(RSQLite)
+library(DBI)
+library(readxl)
+library(dplyr)
+library(writexl)
+library(stringr)
+library(caret)
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(purrr)
+library(lubridate)
+
+
+#######################################################
+##clean avto e'lon data for dashboard
+######################################################
+
+#con <- dbConnect(RSQLite::SQLite(), dbname = "G:/Meine Ablage/Data_solutions/Car market/Data/avtoelon_merged_data_130723.db")
+con <- dbConnect(RSQLite::SQLite(), dbname = "G:/.shortcut-targets-by-id/14JaIYOzGMSPz9fxk1BC73dzq4pbVmigd/Data_solutions/Car market/Data/avtoelon_merged_data_130723.db")
+
+tables <- dbListTables(con)
+print(tables)
+
+data <- dbGetQuery(con, "SELECT * FROM avtoelon")
+
+dbDisconnect(con)
+
+#regions <- read_excel("G:/Meine Ablage/Data_solutions/Car market/data/Regions.xlsx")
+regions <- read_excel("G:/.shortcut-targets-by-id/14JaIYOzGMSPz9fxk1BC73dzq4pbVmigd/Data_solutions/Car market/data/Regions.xlsx")
+########### REGIONS ############
+
+# Change column names to ensure they are consistent
+colnames(data) <- tolower(colnames(data))
+colnames(regions) <- tolower(colnames(regions))
+
+## since lat, long variables are added to the car dataset, we need to change the name of the lat variable in regions dataset
+regions <- regions %>%
+  mutate(lotin=lat) %>%
+  select(-lat)
+
+# Join the datasets
+result <- left_join(data, regions, by = c("city1" = "cyr"))
+
+# Replace 'city1' values with corresponding 'lat' values
+result <- result %>%
+  mutate(city1 = ifelse(!is.na(lotin), lotin, city1))
+
+# Remove the 'lat' column and rewrite all data to a new 'result' data frame
+result <- result %>%
+  select(-lotin)
+
+###########################################
+clean <- result %>%
+  filter(price1 > 2000 & price1 < 300000)
+
+clean <- clean %>%
+  mutate(Brand = brand_name,
+         Model = car_name)
+clean <- clean %>%
+  mutate(Model = ifelse(Model %in% c("nan", "none", "None", "Nan"), title_2_name, Model),
+         Brand = ifelse(Brand %in% c("nan", "none", "None", "Nan"), title_2_brand, Brand))
+
+clean$Model <- gsub(",", "", clean$Model)
+clean$Brand <- gsub(",", "", clean$Brand)
+
+
+## extract month-year variable
+# Define the conversion function
+convert_date <- function(date) {
+  if (str_detect(date, "^\\d{2}/\\d{2}/\\d{4}$")) {
+    return(format(dmy(date), "%m-%Y"))
+  } else if (str_detect(date, "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$")) {
+    return(format(ymd_hms(date), "%m-%Y"))
+  } else {
+    return(NA_character_)
+  }
+}
+# Use dplyr and purrr to efficiently apply the function to the dates column
+clean <- clean %>% mutate(year_month = map_chr(current_time1, convert_date))
+
+
+clean1<- clean[, c(3,6,59,7,57,58,17:20,30:32,38,55,64:66)]
+
+
+##################### model and body type cleaning part 
+car_counts <- clean1 %>%
+  group_by(Model, кузов) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Widen data
+car_counts_wide <- car_counts %>%
+  pivot_wider(names_from = кузов, values_from = count, values_fill = 0) %>%
+  select(-None, -nan)
+
+####long format 
+
+car_counts_long <- car_counts_wide %>%
+  pivot_longer(cols = -Model, names_to = "кузов", values_to = "count")
+
+# most frequent type 
+frequent_body <- car_counts_long %>%
+  group_by(Model) %>%
+  summarise(new_body = кузов[which.max(count)], .groups = 'drop')
+
+# Join to the main dataset
+cars_with_new_body <- left_join(clean1, frequent_body, by = "Model")
+
+########transmission cleaning part
+
+cars_new <- cars_with_new_body %>%
+  mutate(new_transmission = case_when(
+    `коробка передач` %in% c("Вариатор", "Робот", "Типтроник", "Автомат") ~ "Автомат",
+    `коробка передач` == "Механика" ~ "Механика",
+    TRUE ~ `коробка передач`))
+
+
+######motor size cleaning part 
+
+cars_motor <- cars_new %>%
+  group_by(Model, `объем двигателя, л`) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Widen data
+car_motor_counts_wide <- cars_motor %>%
+  pivot_wider(names_from = `объем двигателя, л`, values_from = count, values_fill = 0) %>%
+  select(-None, -nan)
+
+####long format 
+
+car_motor_counts_long <- car_motor_counts_wide %>%
+  pivot_longer(cols = -Model, names_to = "объем двигателя, л", values_to = "count")
+
+# most frequent type 
+frequent_motor <- car_motor_counts_long %>%
+  group_by(Model) %>%
+  summarise(new_motor_size = `объем двигателя, л`[which.max(count)], .groups = 'drop')
+
+
+# Join to the main dataset
+cars_new1 <- left_join(cars_new, frequent_motor, by = "Model")
+
+cars_new2 <- cars_new1[,c(1:7, 10, 12, 13:21)]
+
+
+### rename "nan" "None" values so that they are not counted for only particular feature. 
+#dropping them we would lose observations for descriptive analysis of the market 
+variables <- colnames(cars_new2)
+
+for (var in variables) {
+  cars_new2[[var]] <- ifelse(grepl("nan|none|None|Nan", cars_new2[[var]]), NA, cars_new2[[var]])
+}
+
+cars_new2$пробег <- gsub("км", "", cars_new2$пробег)
+cars_new2$пробег <- as.numeric(cars_new2$пробег)
+cars_new2$lat <- as.numeric(cars_new2$lat)
+cars_new2$long <- as.numeric(cars_new2$long)
+
+##identify the problem with captiva in server
+cars_dataset_full <- cars_new2
+
+
+
+
+#save(cars_dataset_full, file = "G:/Meine Ablage/Data_solutions/Car market/Car_prices_project/shiny/cars_dataset_full.rda")
+save(cars_dataset_full, file = "G:/.shortcut-targets-by-id/14JaIYOzGMSPz9fxk1BC73dzq4pbVmigd/Data_solutions/Car market/Car_prices_project_46vars_u30kdata/shiny/cars_dataset_full.rda")
+
+
+
+
+
+
+
+
+#######################################################
+##clean e-notarius data
+######################################################
+
+e_notarius_avto <- read_excel("G:/Meine Ablage/Data_solutions/Car market/data/e_notarius_avto_yan-aprel.xlsx")
+
+e_notarius_avto <- e_notarius_avto %>%
+  pivot_longer(cols = -region, names_to = "month", values_to = "count")
+
+e_notarius_avto <- e_notarius_avto %>%
+  mutate(month = as.Date(as.numeric(month), origin = "1899-12-30")) %>%
+  mutate(month = format(month, "%Y-%m"))
+
+save(e_notarius_avto, file = "G:/Meine Ablage/Data_solutions/Car market/Car_prices_project/shiny/e_notarius_avto.rda")

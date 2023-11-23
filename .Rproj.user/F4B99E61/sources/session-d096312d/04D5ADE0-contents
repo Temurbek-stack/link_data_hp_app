@@ -1,0 +1,1267 @@
+## load
+source('share_load.R')
+
+server <- 
+  function(input, output, session) {
+    
+    i_prog <- 1
+    tot_step <- 30
+    
+    #############################################################################
+    ############################## 1st Tab ######################################
+    
+    ### 1. Number of cars across regions
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+    cars_dataset <- cars_dataset_full 
+      # mutate(current_time1 = as.Date(current_time1),
+      #        year_month = format(current_time1, "%Y-%m"))
+
+    cars_dataset_chevrolet <- cars_dataset %>%
+      filter(Brand=="Chevrolet") %>%
+      group_by(Model) %>%
+      mutate(freq_model = n()) %>%
+      filter(freq_model >= 1000) %>%
+      ungroup()
+
+    cars_in_regions <- cars_dataset_chevrolet %>%
+      group_by(year_month, region_full) %>%
+      summarise(freq_region = n_distinct(link_item)) %>%
+      ungroup() %>%
+      na.omit()
+
+    cars_in_regions_wide <- cars_in_regions %>%
+      pivot_wider(names_from = region_full, values_from = freq_region, values_fill = 0)
+
+    cars_in_regions_wide[ ,2:15] <- round(cars_in_regions_wide[ ,2:15],0)
+    cars_in_regions_wide <- cars_in_regions_wide[complete.cases(cars_in_regions_wide), ]
+    cars_in_regions_wide <- cars_in_regions_wide %>%
+      rename(`Farg'ona viloyati`=`Farg‘ona viloyat`) %>%
+      rename(`Qoraqalpog'iston Respublikasi` = `Qoraqalpog‘iston Respublikasi`)
+
+    # plot
+    output$cars_in_regions <- renderPlotly({
+      plot_ly(data = cars_in_regions_wide, y = ~`Toshkent viloyati`, x = ~year_month,
+              type = "scatter", mode = "lines+markers",
+              name = "Toshkent vil.",
+              line = list(width = 2, dash="dot"),
+              marker = list(size = 6, symbol = "square"),
+              hoverinfo = "text",
+              text = ~paste("Month:", year_month, "<br>",
+                            "Toshkent sh.:", `Toshkent shahri`, "<br>",
+                            "Toshkent vil.:", `Toshkent viloyati`, "<br>",
+                            "Sirdaryo vil.:", `Sirdaryo viloyati`, "<br>",
+                            "Jizzax vil.:", `Jizzax viloyati`, "<br>",
+                            "Samarqand vil.:", `Samarqand viloyati`, "<br>",
+                            "Farg'ona vil.:", `Farg'ona viloyati`, "<br>",
+                            "Namangan vil.:", `Namangan viloyati`, "<br>",
+                            "Andijon vil.:", `Andijon viloyati`, "<br>",
+                            "Qashqadaryo vil.:", `Qashqadaryo viloyati`, "<br>",
+                            "Surxondaryo vil.:",`Surxondaryo viloyati`, "<br>",
+                            "Buxoro vil.:", `Buxoro viloyati`, "<br>",
+                            "Navoiy vil.:", `Navoiy viloyati`, "<br>",
+                            "Xorazm vil.:", `Xorazm viloyati`, "<br>",
+                            "Qoraqalpog'iston Res.:", `Qoraqalpog'iston Respublikasi`)
+
+      )%>%
+        config(displaylogo = FALSE, modeBarButtons = list(list("toImage"),
+                                                          list("zoomIn2d"),
+                                                          list("zoomOut2d"),
+                                                          list("resetScale2d"))
+        )%>%
+        add_trace(
+          y = ~`Toshkent shahri`,
+          name = "Toshkent sh.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Sirdaryo viloyati`,
+          name = "Sirdaryo vil.",
+          line = list(width = 2, dash="dash"),
+          mode = "lines+markers",
+          marker = list(size = 6, symbol = "x")
+        ) %>%
+        add_trace(
+          y = ~`Jizzax viloyati`,
+          name = "Jizzax vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Samarqand viloyati`,
+          name = "Samarqand vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Farg'ona viloyati`,
+          name = "Farg'ona vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Namangan viloyati`,
+          name = "Namangan vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Andijon viloyati`,
+          name = "Andijon vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Qashqadaryo viloyati`,
+          name = "Qashqadaryo vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Surxondaryo viloyati`,
+          name = "Surxondaryo vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Buxoro viloyati`,
+          name = "Buxoro vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Navoiy viloyati`,
+          name = "Navoiy vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Xorazm viloyati`,
+          name = "Xorazm vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Qoraqalpog'iston Respublikasi`,
+          name = "Qoraqalpog'iston Res.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        layout(plot, paper_bgcolor = "transparent", plot_bgcolor = "transparent", bgalpha = 0,
+               # legend = list(x = 0.1, y = 1, opacity = 0),
+               legend = list(x = 0.1, y = 0.97, xanchor = "left", yanchor = "top", bgcolor = "rgba(255, 255, 255, 0)"),
+               hoverlabel=list(bgcolor='rgba(255,255,255,0.7)', font=list(color='black')),
+               xaxis = list(title = "Months"),
+               yaxis = list(title = "Number of ads")
+        )
+
+
+    })
+
+
+
+    ### 2. E-notarius (monthly)
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+
+    e_notarius_avto_wide <- e_notarius_avto %>%
+      pivot_wider(names_from = region, values_from = count, values_fill = 0)
+
+    ##plot
+    output$e_notarius <- renderPlotly({
+      plot_ly(data = e_notarius_avto_wide,  y = ~`Toshkent vil.`, x = ~month,
+              type = "scatter", mode = "lines+markers",
+              name = "Toshkent vil.",
+              line = list(width = 2, dash="dot"),
+              marker = list(size = 6, symbol = "square"),
+              hoverinfo = "text",
+              text = ~paste("Month:", month, "<br>",
+                            "Toshkent sh.:", `Toshkent sh.`, "<br>",
+                            "Toshkent vil.:", `Toshkent vil.`, "<br>",
+                            "Sirdaryo vil.:", `Sirdaryo vil.`, "<br>",
+                            "Jizzax vil.:", `Jizzax vil.`, "<br>",
+                            "Samarqand vil.:", `Samarqand vil.`, "<br>",
+                            "Farg'ona vil.:", `Farg'ona vil.`, "<br>",
+                            "Namangan vil.:", `Namangan vil.`, "<br>",
+                            "Andijon vil.:", `Andijon vil.`, "<br>",
+                            "Qashqadaryo vil.:", `Qashqadaryo vil.`, "<br>",
+                            "Surxondaryo vil.:",`Surxondaryo vil.`, "<br>",
+                            "Buxoro vil.:", `Buxoro vil.`, "<br>",
+                            "Navoiy vil.:", `Navoiy vil.`, "<br>",
+                            "Xorazm vil.:", `Xorazm vil.`, "<br>",
+                            "Qoraqalpog'iston Res.:", `Qoraqalpog'iston vil.`, "<br>")
+
+      )%>%
+        config(displaylogo = FALSE, modeBarButtons = list(list("toImage"),
+                                                          list("zoomIn2d"),
+                                                          list("zoomOut2d"),
+                                                          list("resetScale2d"))
+        )%>%
+        add_trace(
+          y = ~`Toshkent sh.`,
+          name = "Toshkent sh.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Sirdaryo vil.`,
+          name = "Sirdaryo vil.",
+          line = list(width = 2, dash="dash"),
+          mode = "lines+markers",
+          marker = list(size = 6, symbol = "x")
+        ) %>%
+        add_trace(
+          y = ~`Jizzax vil.`,
+          name = "Jizzax vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Samarqand vil.`,
+          name = "Samarqand vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Farg'ona vil.`,
+          name = "Farg'ona vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Namangan vil.`,
+          name = "Namangan vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Andijon vil.`,
+          name = "Andijon vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Qashqadaryo vil.`,
+          name = "Qashqadaryo vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Surxondaryo vil.`,
+          name = "Surxondaryo vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Buxoro vil.`,
+          name = "Buxoro vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Navoiy vil.`,
+          name = "Navoiy vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Xorazm vil.`,
+          name = "Xorazm vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Qoraqalpog'iston vil.`,
+          name = "Qoraqalpog'iston Res.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+
+
+        layout(plot, paper_bgcolor = "transparent", plot_bgcolor = "transparent", bgalpha = 0,
+               # legend = list(x = 0.1, y = 1, opacity = 0),
+               legend = list(x = 0.1, y = 0.97, xanchor = "left", yanchor = "top", bgcolor = "rgba(255, 255, 255, 0)"),
+               hoverlabel=list(bgcolor='rgba(255,255,255,0.7)', font=list(color='black')),
+               xaxis = list(title = "Months"),
+               yaxis = list(title = "Number of transactions")
+        )
+
+
+    })
+
+
+    ## 3.Price dynamics
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+
+    # cars_dataset <- cars_dataset_full
+          # mutate(current_time1 = as.Date(current_time1),
+          #    year_month = format(current_time1, "%Y-%m"))
+
+    cars_dataset_chevrolet <- cars_dataset %>%
+      filter(Brand=="Chevrolet") %>%
+      group_by(Model) %>%
+      mutate(freq = n()) %>%
+      filter(freq >= 1000)
+
+    mean_price <- cars_dataset_chevrolet %>%
+      group_by(year_month, Model) %>%
+      summarise(mean_price = mean(price1)) %>%
+      ungroup()
+
+    mean_price_wide <- mean_price %>%
+      pivot_wider(names_from = Model, values_from = mean_price, values_fill = 0)
+
+    mean_price_wide[ ,2:16] <- round(mean_price_wide[ ,2:16],0)
+    mean_price_wide <- mean_price_wide[complete.cases(mean_price_wide), ]
+
+    ### plot
+    output$PriceDynModels <- renderPlotly({
+      plot_ly(
+        data = mean_price_wide, y = ~`Cobalt`, x = ~year_month,
+        type = "scatter", mode = "lines+markers",
+        name = "Cobalt",
+        line = list(width = 2, dash="dot"),
+        marker = list(size = 6, symbol = "square"),
+        hoverinfo = "text",
+
+        text = ~paste("Month:", year_month, "<br>",
+                      "Captiva:", `Captiva I`, "<br>",
+                      "Captiva:", `Captiva II`, "<br>",
+                      "Captiva:", `Captiva III`, "<br>",
+                      "Cobalt:", Cobalt, "<br>",
+                      "Damas:", Damas, "<br>",
+                      "Epica:", Epica, "<br>",
+                      "Equinox:", Equinox, "<br>",
+                      "Gentra:", Gentra, "<br>",
+                      "Captiva:", Labo, "<br>",
+                      "Lacetti:", Lacetti, "<br>",
+                      "Malibu:", `Malibu I`, "<br>",
+                      "Malibu 2:", `Malibu II`, "<br>",
+                      "Matiz:", Matiz, "<br>",
+                      #"Matiz Best:",`Matiz Best`, "<br>",
+                      "Nexia 2:", `Nexia II`, "<br>",
+                      "Nexia 3:", `Nexia III`, "<br>",
+                      "Onix:", Onix, "<br>",
+                      "Orlando:", Orlando, "<br>",
+                      "Spark:", Spark, "<br>",
+                      "Tracker:", `Tracker`, "<br>",
+                      "Tracker 2:", `Tracker II`, "<br>")
+
+      )%>%
+        config(displaylogo = FALSE, modeBarButtons = list(list("toImage"),
+                                                          list("zoomIn2d"),
+                                                          list("zoomOut2d"),
+                                                          list("resetScale2d"))
+        )%>%
+        add_trace(
+          y = ~`Captiva I`,
+          name = "Captiva 1",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Captiva II`,
+          name = "Captiva 2",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Captiva III`,
+          name = "Captiva 3",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Damas,
+          name = "Damas",
+          line = list(width = 2, dash="dash"),
+          mode = "lines+markers",
+          marker = list(size = 6, symbol = "square"),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Epica,
+          name = "Epica",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Equinox,
+          name = "Equinox",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Gentra,
+          name = "Gentra",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Labo,
+          name = "Labo",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Lacetti,
+          name = "Lacetti",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Malibu I`,
+          name = "Malibu 1",
+          line = list(width = 2, dash="dash"),
+          mode = "lines+markers",
+          marker = list(size = 6, symbol = "x")
+        ) %>%
+        add_trace(
+          y = ~`Malibu II`,
+          name = "Malibu 2",
+          line = list(width = 2, dash="dash"),
+          mode = "lines+markers",
+          marker = list(size = 6, symbol = "x")
+        ) %>%
+        add_trace(
+          y = ~Matiz,
+          name = "Matiz",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Nexia II`,
+          name = "Nexia 2",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Nexia III`,
+          name = "Nexia 3",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Onix,
+          name = "Onix",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Orlando,
+          name = "Orlando",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Spark,
+          name = "Spark",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~Tracker,
+          name = "Tracker",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Tracker II`,
+          name = "Tracker 2",
+          line = list(width = 2, dash="dash"),
+          mode = "lines+markers",
+          marker = list(size = 6, symbol = "x")
+        ) %>%
+
+
+        layout(plot, paper_bgcolor = "transparent", plot_bgcolor = "transparent", bgalpha = 0,
+               # legend = list(x = 0.1, y = 1, opacity = 0),
+               legend = list(
+                 x = 0.1,
+                 y = 1,
+                 xanchor = "left",
+                 yanchor = "top",
+                 bgcolor = "rgba(255, 255, 255, 0)",
+                 orientation = 'h',  # horizontal legend
+                 traceorder = "normal"
+               ),
+               hoverlabel=list(bgcolor='rgba(255,255,255,0.7)', font=list(color='black')),
+               #title = "Price Dynamics across Car MOdels",
+               xaxis = list(title = "Months"),
+               yaxis = list(title = "USD")
+        )
+
+
+    })
+
+
+
+    ### 4. Number of cars (monthly)
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+
+    n_cars_chevrolet <- cars_dataset_chevrolet %>%
+      group_by(Model) %>%
+      #mutate(n_cars = n()) %>%
+      mutate(n_cars = n_distinct(link_item)) %>%
+      filter(row_number() == 1) %>%
+      select(Model, n_cars) %>%
+      ungroup()
+
+    output$N_cars <- renderPlotly({
+      plot_ly(data = n_cars_chevrolet, labels = ~Model, values = ~n_cars,
+              type = "pie", hole = 0.4, # Add this line to create a donut chart.
+              hoverinfo = "label+percent+name") %>%
+        config(displaylogo = FALSE, modeBarButtons = list(list("toImage"),
+                                                          list("zoomIn2d"),
+                                                          list("zoomOut2d"),
+                                                          list("resetScale2d"))
+        ) %>%
+        layout(plot_bgcolor = "transparent",
+               paper_bgcolor = "transparent")
+    })
+
+
+
+
+    #############################################################################
+    ############### 2nd Tab ####################################################
+
+    car_types <-c("Captiva I",
+                  "Captiva II",
+                  "Captiva III",
+                  "Cobalt",
+                  "Damas",
+                  "Epica",
+                  "Equinox",
+                  "Gentra",
+                  "Labo",
+                  "Lacetti",
+                  "Malibu I",
+                  "Malibu II",
+                  "Matiz",
+                  #"Matiz Best",
+                  "Nexia II",
+                  "Nexia III",
+                  "onix",
+                  "Orlando",
+                  "Spark",
+                  "Tracker",
+                  "Tracker II")
+
+    ### 5. map of number of cars in the data
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+    model_cities <- cars_dataset_chevrolet %>%
+      group_by(Model, city1) %>%
+      #summarise(freq_region = n()) %>%
+      summarise(n_cars = n_distinct(link_item),
+                lat=lat,
+                long=long) %>%
+      select(Model, city1, n_cars, lat, long) %>%
+      filter(!is.na(city1),
+             row_number()==1) %>%
+      ungroup()
+    #
+    # model_cities <- model_cities %>%
+    #   mutate(circle_size= log(n_cars)*100)
+
+    output$mapModel <- renderLeaflet({
+
+      if (input$model %in% car_types) {
+        model_cities <- filter(model_cities, Model == input$model)
+      }
+
+      # popupinfo <- paste(sep = "<br/>",
+      #                               <b> model_cities$city1 </b>,
+      #                               "Number of cars:",
+      #                               model_cities$n_cars
+      #                    )
+
+      leaflet(model_cities) %>%
+        addTiles() %>%
+        setView(lng = 64.5853, lat = 41, zoom = 6) %>%
+        addCircleMarkers(~long, ~lat, radius = ~sqrt(n_cars), layerId = ~city1,
+                         fillOpacity=0.4,
+                         popup = ~ paste("<b/>", city1, "</b>", "<br/>", "Number of cars:", n_cars)
+        )
+    })
+
+
+
+
+
+
+
+    ### 6. Price range histogram
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+    # cars_dataset <- cars_dataset %>%
+    #   mutate(current_time1 = as.Date(current_time1),
+    #          year_month = format(current_time1, "%Y-%m"))
+
+    cars_dataset_chevrolet <- cars_dataset %>%
+      filter(Brand=="Chevrolet") %>%
+      group_by(Model) %>%
+      mutate(freq = n()) %>%
+      #mutate(freq = n_distinct(link_item)) %>%
+      filter(freq >= 1000)
+
+    cars_dataset_chevrolet <- cars_dataset_chevrolet %>%
+      mutate(price1 = ifelse(Model=="Damas" & price1>20000, price1/10, price1),
+             price1 = ifelse(Model=="Spark" & price1>15000, price1/10, price1),
+             price1 = ifelse(Model=="Cobalt" & price1>30000, price1/10, price1))
+
+    car_types <-c("Captiva I",
+                  "Captiva II",
+                  "Captiva III",
+                  "Cobalt",
+                  "Damas",
+                  "Epica",
+                  "Equinox",
+                  "Gentra",
+                  "Labo",
+                  "Lacetti",
+                  "Malibu I",
+                  "Malibu II",
+                  "Matiz",
+                  #"Matiz Best",
+                  "Nexia II",
+                  "Nexia III",
+                  "onix",
+                  "Orlando",
+                  "Spark",
+                  "Tracker",
+                  "Tracker II")
+
+    output$histPlotPrice <- renderPlotly({
+
+      if (input$model %in% car_types) {
+        cars_dataset_chevrolet <- filter(cars_dataset_chevrolet, Model == input$model)
+      }
+
+      ggplot(cars_dataset_chevrolet, aes(x = price1)) +
+        geom_histogram(aes(y = ..density..), colour = "black", fill = "white") +
+        geom_density(alpha = .2, fill = "#1f77b4") +
+        xlab("Price") +
+        ylab("Density") +
+        theme(panel.background = element_rect(fill='transparent'),
+              plot.background = element_rect(fill = "transparent", color = NA))
+
+    })
+
+
+    ### 7. Transmission type
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+    model_transmission <- cars_dataset_chevrolet %>%
+      group_by(Model, new_transmission) %>%
+      mutate(n_cars = n_distinct(link_item)) %>%
+      filter(row_number() == 1) %>%
+      select(Model, new_transmission, n_cars) %>%
+      ungroup()
+
+    output$barPlotTransmission <- renderPlotly({
+
+      if (input$model %in% car_types) {
+        model_transmission <- filter(model_transmission, Model == input$model)
+      }
+
+      plot_ly(data = model_transmission, y = ~n_cars, x = ~new_transmission,
+              color = ~n_cars, colors = c("#2ca02c", "#1f77b4"),
+              type = "bar",
+              hoverinfo = "text") %>%
+        config(displaylogo = FALSE, modeBarButtons = list(list("toImage"),
+                                                          list("zoomIn2d"),
+                                                          list("zoomOut2d"),
+                                                          list("resetScale2d"))
+        ) %>%
+        layout(plot, paper_bgcolor = "transparent", plot_bgcolor = "transparent", bgalpha = 0,
+               yaxis = list(title ='Number of cars'),
+               xaxis = list(title = 'Transmission type'))
+
+    })
+
+
+    ### 8. Probeg histogram
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+    cars_dataset_chevrolet <- cars_dataset_chevrolet %>%
+      mutate(пробег = ifelse(пробег>1000000, пробег/10, пробег))
+
+    output$histPlotProbeg <- renderPlotly({
+
+      if (input$model %in% car_types) {
+        cars_dataset_chevrolet <- filter(cars_dataset_chevrolet, Model == input$model)
+      }
+
+      ggplot(cars_dataset_chevrolet, aes(x = пробег)) +
+        geom_histogram(aes(y = ..density..), colour = "black", fill = "white") +
+        geom_density(alpha = .2, fill = "#1f77b4") +
+        xlab("Kilometrage") +
+        ylab("Density") +
+        theme(panel.background = element_rect(fill='transparent'),
+              plot.background = element_rect(fill = "transparent", color = NA))
+
+    })
+
+
+
+    ### 9. Fuel type
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+    model_fuel <- cars_dataset_chevrolet %>%
+      group_by(Model, fuel_type) %>%
+      mutate(n_cars = n_distinct(link_item)) %>%
+      filter(row_number() == 1) %>%
+      select(Model, fuel_type, n_cars) %>%
+      ungroup()
+
+    output$barPlotFuel <- renderPlotly({
+
+      if (input$model %in% car_types) {
+        model_fuel <- filter(model_fuel, Model == input$model)
+      }
+
+      plot_ly(data = model_fuel, y = ~n_cars, x = ~fuel_type,
+              color = ~n_cars, colors = c("#2ca02c", "#1f77b4"),   # Add color and colors parameters here.
+              type = "bar",
+              hoverinfo = "text") %>%
+        config(displaylogo = FALSE, modeBarButtons = list(list("toImage"),
+                                                          list("zoomIn2d"),
+                                                          list("zoomOut2d"),
+                                                          list("resetScale2d"))
+        ) %>%
+        layout(plot, paper_bgcolor = "transparent", plot_bgcolor = "transparent", bgalpha = 0,
+               yaxis = list(title ='Number of cars'),
+               xaxis = list(title = 'Fuel type'))
+
+    })
+
+
+
+
+      ### 10. Color count
+      withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+        # Increment the progress bar, and update the detail text.
+        incProgress( i_prog/tot_step, detail = NULL)
+        ##Sys.sleep(0.1)
+
+      })
+      i_prog <- i_prog + 1
+
+
+      model_color <- cars_dataset_chevrolet %>%
+        group_by(Model, цвет) %>%
+        mutate(n_cars = n_distinct(link_item)) %>%
+        filter(row_number() == 1) %>%
+        select(Model, цвет, n_cars) %>%
+        ungroup()
+
+      output$hbarPlotColor <- renderPlotly({
+
+        if (input$model %in% car_types) {
+          model_color <- filter(model_color, Model == input$model)
+        }
+
+        plot_ly(data = model_color, x = ~n_cars, y = ~цвет,
+                color = ~n_cars, colors = c("#2ca02c", "#1f77b4"),
+                type = "bar",
+                orientation = 'h',
+                hoverinfo = "text") %>%
+          config(displaylogo = FALSE, modeBarButtons = list(list("toImage"),
+                                                            list("zoomIn2d"),
+                                                            list("zoomOut2d"),
+                                                            list("resetScale2d"))
+          ) %>%
+          layout(plot, paper_bgcolor = "transparent", plot_bgcolor = "transparent", bgalpha = 0,
+                 xaxis = list(title ='Number of cars'),
+                 yaxis = list(title = '', categoryorder = "total ascending"))
+
+      })
+
+
+
+    ### 11. Count cars by months
+    withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+      # Increment the progress bar, and update the detail text.
+      incProgress( i_prog/tot_step, detail = NULL)
+      ##Sys.sleep(0.1)
+
+    })
+    i_prog <- i_prog + 1
+
+    # cars_dataset <- cars_dataset_full %>%
+    #   mutate(current_time1 = as.Date(current_time1),
+    #          year_month = format(current_time1, "%Y-%m"))
+
+    cars_dataset_chevrolet <- cars_dataset %>%
+      filter(Brand=="Chevrolet") %>%
+      group_by(Model) %>%
+      mutate(freq_model = n()) %>%
+      filter(freq_model >= 1000) %>%
+      ungroup()
+
+    model_cities_months <- cars_dataset_chevrolet %>%
+      group_by(year_month, region_full, Model) %>%
+      summarise(n_cars = n_distinct(link_item)) %>%
+      ungroup()
+
+    model_cities_months <- model_cities_months %>%
+      filter(!is.na(region_full))
+
+    model_cities_months_wide <- model_cities_months %>%
+      pivot_wider(names_from = region_full, values_from = n_cars, values_fill = 0)
+
+    model_cities_months_wide <- model_cities_months_wide[complete.cases(model_cities_months_wide), ]
+    model_cities_months_wide <- model_cities_months_wide %>%
+      rename(`Farg'ona viloyati`=`Farg‘ona viloyat`) %>%
+      rename(`Qoraqalpog'iston Respublikasi` = `Qoraqalpog‘iston Respublikasi`)
+
+    # plot
+    output$lineModelsMonthly <- renderPlotly({
+
+      if (input$model %in% car_types) {
+        model_cities_months_wide <- filter(model_cities_months_wide, Model == input$model)
+      }
+
+      plot_ly(data = model_cities_months_wide, y = ~`Toshkent viloyati`, x = ~year_month,
+              type = "scatter", mode = "lines+markers",
+              name = "Toshkent vil.",
+              line = list(width = 2, dash="dot"),
+              mode = "lines+markers",
+              marker = list(size = 6, symbol = "square"),
+              hoverinfo = "text",
+              text = ~paste("Month:", year_month, "<br>",
+                            "Toshkent sh.:", `Toshkent shahri`, "<br>",
+                            "Toshkent vil.:", `Toshkent viloyati`, "<br>",
+                            "Sirdaryo vil.:", `Sirdaryo viloyati`, "<br>",
+                            "Jizzax vil.:", `Jizzax viloyati`, "<br>",
+                            "Samarqand vil.:", `Samarqand viloyati`, "<br>",
+                            "Farg'ona vil.:", `Farg'ona viloyati`, "<br>",
+                            "Namangan vil.:", `Namangan viloyati`, "<br>",
+                            "Andijon vil.:", `Andijon viloyati`, "<br>",
+                            "Qashqadaryo vil.:", `Qashqadaryo viloyati`, "<br>",
+                            "Surxondaryo vil.:",`Surxondaryo viloyati`, "<br>",
+                            "Buxoro vil.:", `Buxoro viloyati`, "<br>",
+                            "Navoiy vil.:", `Navoiy viloyati`, "<br>",
+                            "Xorazm vil.:", `Xorazm viloyati`, "<br>",
+                            "Qoraqalpog'iston Res.:", `Qoraqalpog'iston Respublikasi`)
+
+      )%>%
+        config(displaylogo = FALSE, modeBarButtons = list(list("toImage"),
+                                                          list("zoomIn2d"),
+                                                          list("zoomOut2d"),
+                                                          list("resetScale2d"))
+        )%>%
+        add_trace(
+          y = ~`Toshkent shahri`,
+          name = "Toshkent sh.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Sirdaryo viloyati`,
+          name = "Sirdaryo vil.",
+          line = list(width = 2, dash="dash"),
+          mode = "lines+markers",
+          marker = list(size = 6, symbol = "x")
+        ) %>%
+        add_trace(
+          y = ~`Jizzax viloyati`,
+          name = "Jizzax vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Samarqand viloyati`,
+          name = "Samarqand vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Farg'ona viloyati`,
+          name = "Farg'ona vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Namangan viloyati`,
+          name = "Namangan vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Andijon viloyati`,
+          name = "Andijon vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Qashqadaryo viloyati`,
+          name = "Qashqadaryo vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Surxondaryo viloyati`,
+          name = "Surxondaryo vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Buxoro viloyati`,
+          name = "Buxoro vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Navoiy viloyati`,
+          name = "Navoiy vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Xorazm viloyati`,
+          name = "Xorazm vil.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        add_trace(
+          y = ~`Qoraqalpog'iston Respublikasi`,
+          name = "Qoraqalpog'iston Res.",
+          line = list(width = 2),
+          mode = "lines+markers",
+          marker = list(size = 5),
+          visible = "legendonly"
+        ) %>%
+        layout(plot, paper_bgcolor = "transparent", plot_bgcolor = "transparent", bgalpha = 0,
+               # legend = list(x = 0.1, y = 1, opacity = 0),
+               legend = list(x = 0.1, y = 0.97, xanchor = "left", yanchor = "top", bgcolor = "rgba(255, 255, 255, 0)"),
+               hoverlabel=list(bgcolor='rgba(255,255,255,0.7)', font=list(color='black')),
+               xaxis = list(title = "Months"),
+               yaxis = list(title = "Number of ads")
+        )
+
+
+    })
+    
+    
+      ### 3rd Tab. Predictor
+      withProgress(message = 'Loading...', value = (i_prog-1)/tot_step, {
+        # Increment the progress bar, and update the detail text.
+        incProgress( i_prog/tot_step, detail = NULL)
+        ##Sys.sleep(0.1)
+        
+      })
+      i_prog <- i_prog + 1
+      
+      output$predicted_price <- renderText(NULL)
+      
+      # The observe function for car_brand selection
+      observe({
+        car_brand_selection <- input$car_brand
+        # Filter the data to get only the models for selected brand
+        car_model_choices <-  unique(train_data[train_data$Brand1 == car_brand_selection, "Model1"])
+        car_model_choices <- car_model_choices[!is.na(car_model_choices)]
+        # Update the car_model selectInput with the filtered choices
+        updateSelectInput(session, "car_model", choices = car_model_choices)
+      })
+      
+      # The observe function for car_model selection
+      observe({
+        car_model_selection <- input$car_model
+        # Filter the data to get only the engine volumes for selected model
+        engine_volume_choices <- unique(train_data[train_data$Model1 == car_model_selection, "new_motor_size"])
+        engine_volume_choices <- as.character(engine_volume_choices)
+        engine_volume_choices <- engine_volume_choices[!is.na(engine_volume_choices)]
+        # Filter the data to get only the body types for selected model
+        body_type_choices <- unique(train_data[train_data$Model1 == car_model_selection, "new_body"])
+        body_type_choices <- body_type_choices[!is.na(body_type_choices)]
+        # Filter the data to get only the drive types for selected model
+        drive_choices <- unique(train_data[train_data$Model1 == car_model_selection, "привод"])
+        drive_choices <- drive_choices[!is.na(drive_choices)]
+        # Filter the data to get only the transmission types for selected model
+        transmission_choices <- unique(train_data[train_data$Model1 == car_model_selection, "new_transmission"])
+        transmission_choices <- transmission_choices[!is.na(transmission_choices)]
+        # Update the engine_volume, body_type, and drive selectInputs with the filtered choices
+        updateSelectInput(session, "engine_volume", choices = engine_volume_choices)
+        updateSelectInput(session, "body_type", choices = body_type_choices)
+        updateSelectInput(session, "drive", choices = drive_choices)
+        updateSelectInput(session, "transmission", choices = transmission_choices)
+      })
+      
+      
+      observeEvent(input$predict, {
+        # Prepare new_car data
+        new_car <- data.frame(region_full = as.factor(input$car_region),
+                              год = as.integer(input$year),
+                              привод = as.factor(input$drive),
+                              пробег = as.numeric(input$kilometrage),
+                              fuel_type = as.factor(input$fuel_type)
+        )
+        
+        selected_other_features <- input$ex_features
+        selected_other_features <- input$optional_features
+        selected_other_features <- input$optics
+        selected_other_features <- input$interior_features
+        selected_other_features <- input$audio_options
+        for (feature in binary_cols) {
+          new_car[[feature]] <- ifelse(feature %in% selected_other_features, 1, 0)
+        }
+        
+        new_car <- new_car %>%
+          mutate(year_month = as.factor(current_month_year),
+                 new_body = as.factor(input$body_type),
+                 new_transmission = as.factor(input$transmission),
+                 new_motor_size = as.numeric(input$engine_volume),
+                 color = as.factor(input$color),
+                 condtion = as.factor(input$paint_condition),
+                 Model1 = as.factor(input$car_model),
+                 Brand1 = as.factor(input$car_brand)
+          )
+        new_car <- tibble::as_tibble(new_car)
+
+        #browser()
+        new_car <- rbind(train_data[1, -1] , new_car)
+        new_car <- new_car[-1,]
+        # Define the server logic (continuation)
+        model <- rf_new_wtime_model_full_76vars_ranger
+        predicted_price <- NULL
+        #predicted_price <- round(predict(model, newdata = new_car), 2)
+        predicted_price <- round(predict(model, data = new_car)$predictions, 2)
+        
+        
+        output$predicted_price <- renderUI({
+ #         Sys.sleep(2)
+          HTML(paste0('<span style="color: #003049">Predicted Price:</span>',"<br>", "$", predicted_price))
+        })
+        
+        output$car_image <- renderUI({
+          # specify the path of your image file
+          image_path <- file.path("model_pics/New folder", paste0(input$car_model, ".png"))
+          
+          # Return an img tag with appropriate classes
+          tags$img(src = image_path, 
+                   alt = paste("Image of", input$car_model), 
+                   width = "auto",
+                   height = 400,
+                   class = "animate__animated animate__fadeInRight")
+        })
+
+      })
+      
+      
+      
+      ############ variable importance #############
+      model <- rf_new_wtime_model_u30k_46_vars
+      varImpPlot(model)
+      
+      importance_data <- model$importance
+      importance_df <- data.frame(
+        Variable = row.names(importance_data),
+        Importance = importance_data[,1]
+      )
+      
+      importance_df <- importance_df[order(importance_df$Importance, decreasing = TRUE),]
+      
+      total_importance <- sum(importance_df$Importance)
+      
+      importance_df$RelativeImportance <- importance_df$Importance / total_importance
+      
+      importance_df$RelativeImportance <- importance_df$RelativeImportance * 100
+      
+      above_1_df <- subset(importance_df, RelativeImportance > 1)
+      below_1_df <- subset(importance_df, RelativeImportance <= 1)
+      
+      p1 <- ggplot(above_1_df, aes(x = reorder(Variable, RelativeImportance), y = RelativeImportance)) +
+        geom_bar(stat = "identity", fill = "steelblue") +
+        geom_text(aes(label = paste0(round(RelativeImportance, 2), "%")), 
+                  position = position_dodge(width = 0.9), vjust = 0.5, hjust = -0.2) +
+        coord_flip() +
+        theme_minimal() +
+        labs(x = "Variables", y = "Importance")
+      
+      output$varimportance_above1 <- renderPlotly({
+        p1 <- ggplotly(p1)
+        p1 <- layout(p1, paper_bgcolor = "transparent", plot_bgcolor = "transparent", bgalpha = 0, autosize = TRUE)
+        p1
+        })
+
+      p2 <- ggplot(below_1_df, aes(x = reorder(Variable, RelativeImportance), y = RelativeImportance)) +
+        geom_bar(stat = "identity", fill = "red") +
+        geom_text(aes(label = paste0(round(RelativeImportance, 2), "%")), 
+                  position = position_dodge(width = 0.9), vjust = 0.5, hjust = -0.2)  +
+        coord_flip() +
+        theme_minimal() +
+        labs(x = "Variables", y = "Importance")
+      
+      output$varimportance_below1 <- renderPlotly({
+        p2 <- ggplotly(p2)
+        p2 <- layout(p2, paper_bgcolor = "transparent", plot_bgcolor = "transparent", bgalpha = 0, autosize = TRUE)
+        p2
+        })
+        
+      
+      
+      
+      
+      
+      
+  }

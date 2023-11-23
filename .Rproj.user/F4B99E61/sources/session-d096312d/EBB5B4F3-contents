@@ -1,0 +1,66 @@
+
+
+
+model <- readRDS("rf_new_wtime_model_u30k_46_vars (1).rds")
+
+##### visualization part 
+library(ggplot2)
+varImpPlot(model)
+
+importance_data <- model$importance
+importance_df <- data.frame(
+  Variable = row.names(importance_data),
+  Importance = importance_data[,1]
+)
+
+importance_df <- importance_df[order(importance_df$Importance, decreasing = TRUE),]
+
+ggplot(importance_df, aes(x = reorder(Variable, -Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Variables", y = "Importance", title = "Variable Importance")
+
+####bringing to one scale 
+
+total_importance <- sum(importance_df$Importance)
+
+importance_df$RelativeImportance <- importance_df$Importance / total_importance
+
+importance_df$RelativeImportance <- importance_df$RelativeImportance * 100
+
+print(importance_df)
+
+# ggplot(importance_df, aes(x = reorder(Variable, -RelativeImportance), y = RelativeImportance)) +
+#   geom_bar(stat = "identity", fill = "steelblue") +
+#   geom_text(aes(label = paste0(round(RelativeImportance, 2), "%")), 
+#             position = position_dodge(width = 0.9), vjust = -0.25) +
+#   coord_flip() +
+#   theme_minimal() +
+#   labs(x = "Variables", y = "Importance", title = "Variable Importance of Random Forest")
+# 
+
+### seperating based on importance 
+
+
+
+above_1_df <- subset(importance_df, RelativeImportance > 1)
+below_1_df <- subset(importance_df, RelativeImportance <= 1)
+
+
+ggplot(above_1_df, aes(x = reorder(Variable, RelativeImportance), y = RelativeImportance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = paste0(round(RelativeImportance, 2), "%")), 
+            position = position_dodge(width = 0.9), vjust = 0.5, hjust = -0.2) +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Variables", y = "Importance", title = "Variable Importance of Random Forest (Above 1%)")
+
+
+ggplot(below_1_df, aes(x = reorder(Variable, RelativeImportance), y = RelativeImportance)) +
+  geom_bar(stat = "identity", fill = "red") +
+  geom_text(aes(label = paste0(round(RelativeImportance, 2), "%")), 
+            position = position_dodge(width = 0.9), vjust = 0.5, hjust = -0.2)  +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Variables", y = "Importance", title = "Variable Importance of Random Forest (Below or Equal to 1%)")

@@ -1,0 +1,14 @@
+name: house_price_app
+title: house_price_app
+username:
+account: data-solutions-tashkent
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 10577475
+bundleId: 7947821
+url: https://data-solutions-tashkent.shinyapps.io/house_price_app/
+when: 1700477671.82494
+lastSyncTime: 1700477671.82495
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: shinysample.rda
