@@ -1,4 +1,3 @@
-install.packages()
 ##  load library --------------------
 library(shinydashboard)
 library(shinydashboardPlus)
